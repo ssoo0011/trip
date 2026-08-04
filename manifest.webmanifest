@@ -1,0 +1,20 @@
+{
+  "name": "내 여행",
+  "short_name": "내 여행",
+  "description": "여행 장소와 일정, 경비를 한곳에서 관리하는 플래너",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone"],
+  "orientation": "portrait",
+  "background_color": "#f7f8fc",
+  "theme_color": "#17213b",
+  "icons": [
+    {
+      "src": "app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

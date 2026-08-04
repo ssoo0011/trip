@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#17233f" />
+    <meta name="description" content="여행 경비와 일정을 한곳에 기록하는 레트로 여행 플래너" />
+    <title>TRIP//PXL — 여행 플래너</title>
+    <link rel="stylesheet" href="trip.css?v=20260804-3" />
+  </head>
+  <body data-page="list">
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="여행 기록 홈"><span class="brand-mark">✦</span><span>TRIP<span class="brand-slash">//</span>LOG</span></a>
+        <div class="topbar-actions"><span class="storage-status"><span class="status-dot"></span><span id="storageStatus">자동 저장됨</span></span><button class="icon-button" id="exportButton" type="button" title="JSON으로 내보내기" aria-label="JSON으로 내보내기">↥</button><button class="icon-button" id="importButton" type="button" title="JSON 가져오기" aria-label="JSON 가져오기">↧</button><input id="importInput" type="file" accept="application/json,.json" hidden /></div>
+      </header>
+
+      <main id="top">
+        <nav class="tab-bar" aria-label="여행 플래너 메뉴"><button class="tab-button active" data-tab="expenses" type="button"><span class="tab-index">01</span> 경비 계산</button><button class="tab-button" data-tab="plans" type="button"><span class="tab-index">02</span> 여행 계획</button></nav>
+
+        <section class="dashboard" id="expensesPanel" data-panel="expenses"><div class="section-heading"><div><p class="eyebrow"><span>경비 기록</span> 여행 예산</p><h2>여행 경비를<br /><em>미리 계산해요.</em></h2></div><div class="heading-note"><span class="pixel-icon">↗</span><span id="expenseItemCount">0개 항목<br /><b>기록 대기 중</b></span></div></div>
+          <div class="stats-grid expenses-stats"><article class="stat-card stat-card-pink"><span class="stat-label">총 예상 경비</span><strong id="totalExpense">₩0</strong><span class="stat-foot">여행에 필요한 전체 금액</span></article><article class="stat-card stat-card-blue"><span class="stat-label">항목 평균</span><strong id="averageExpense">₩0</strong><span class="stat-foot">한 항목당 평균 금액</span></article><article class="stat-card stat-card-cream"><span class="stat-label">최다 카테고리</span><strong id="topExpenseCategory">—</strong><span class="stat-foot">가장 많이 쓰는 분류</span></article></div>
+          <div class="workspace-grid"><section class="panel form-panel"><div class="panel-heading"><div><span class="mini-label">새 항목</span><h3>경비 추가</h3></div><span class="panel-symbol">₩</span></div><form id="expenseForm" class="entry-form"><label>항목 이름<input name="title" type="text" placeholder="예: 왕복 항공권" required maxlength="80" /></label><label>금액<input name="amount" type="number" min="0" step="100" placeholder="0" required /></label><div class="field-label">카테고리<div class="select-row"><select name="category" id="expenseCategory" required></select><button class="manage-button" type="button" data-manage="expenses" aria-label="경비 카테고리 관리">＋</button></div></div><button class="primary-button" type="submit"><span>경비 저장</span><span>→</span></button></form><p class="form-hint"><span>✦</span> 저장하면 자동으로 보관돼요.</p></section><section class="panel list-panel"><div class="panel-heading list-heading"><div><span class="mini-label">저장 목록</span><h3>경비 보관함</h3></div><span class="item-count" id="expenseListCount">0</span></div><div class="entry-list" id="expenseList"></div></section></div>
+          <section class="breakdown-panel panel" aria-label="카테고리별 경비"><div class="breakdown-copy"><span class="mini-label">분류별 보기</span><h3>카테고리별<br /><em>경비 분포</em></h3><p>어디에 예산을 많이 쓰는지<br />한눈에 확인해요.</p></div><div class="breakdown-bars" id="expenseBreakdown"></div></section>
+        </section>
+
+        <section class="dashboard hidden" id="plansPanel" data-panel="plans"><div class="section-heading"><div><p class="eyebrow"><span>여행 일정</span> 하루 기록</p><h2>하고 싶은 일을<br /><em>순서대로 담아요.</em></h2></div><div class="heading-note"><span class="pixel-icon">◷</span><span id="planItemCount">0개 항목<br /><b>새로운 하루를 기다려요</b></span></div></div>
+          <div class="stats-grid plans-stats"><article class="stat-card stat-card-blue"><span class="stat-label">총 소요시간</span><strong id="totalDuration">0분</strong><span class="stat-foot">예상 활동 시간</span></article><article class="stat-card stat-card-pink"><span class="stat-label">저장한 일정</span><strong id="totalPlans">0</strong><span class="stat-foot">여행 계획 항목 수</span></article><article class="stat-card stat-card-cream"><span class="stat-label">가장 긴 일정</span><strong id="longestPlan">—</strong><span class="stat-foot">가장 오래 머무는 일정</span></article></div>
+          <div class="workspace-grid"><section class="panel form-panel"><div class="panel-heading"><div><span class="mini-label">새 일정</span><h3>여행 계획 추가</h3></div><span class="panel-symbol">✦</span></div><form id="planForm" class="entry-form"><label>날짜<input name="date" type="date" required /></label><label>시간<input name="time" type="time" required /></label><label>일정 이름<input name="title" type="text" placeholder="예: 시장 구경" required maxlength="80" /></label><label>소요시간 <span class="label-muted">(분)</span><input name="duration" type="number" placeholder="90" /></label><div class="field-label">카테고리<div class="select-row"><select name="category" id="planCategory" required></select><button class="manage-button" type="button" data-manage="plans" aria-label="일정 카테고리 관리">＋</button></div></div><button class="primary-button blue-button" type="submit"><span>일정 저장</span><span>→</span></button></form><p class="form-hint"><span>✦</span> 날짜와 시간을 넣어 하루를 정리해요.</p></section><section class="panel list-panel plan-list-panel"><div class="panel-heading list-heading"><div><span class="mini-label">저장 목록</span><h3>여행 계획표</h3></div><span class="item-count blue-count" id="planListCount">0</span></div><div class="plan-table-wrap"><table class="plan-table"><thead><tr><th>날짜</th><th>시간</th><th>일정</th><th>소요시간</th><th>카테고리</th><th aria-label="삭제"></th></tr></thead><tbody id="planList"></tbody></table></div></section></div>
+          <section class="timeline-panel panel"><div class="timeline-head"><div><span class="mini-label">하루 흐름</span><h3>여행 리듬</h3></div><span class="timeline-total" id="timelineTotal">0분</span></div><div class="timeline-track" id="timelineTrack"></div></section>
+        </section>
+        <footer class="site-footer"><span>TRIP//LOG <b>여행 기록</b></span><span>즐거운 여행을 준비해요 ✦</span></footer>
+      </main>
+    </div>
+
+    <dialog class="category-modal" id="categoryModal"><form method="dialog" class="modal-card" id="categoryForm"><button class="modal-close" value="cancel" aria-label="닫기">×</button><span class="mini-label" id="modalKicker">카테고리</span><h2 id="modalTitle">경비 카테고리</h2><p class="modal-description">자주 쓰는 분류를 추가하거나, 필요 없는 분류를 정리하세요.</p><div class="category-add-row"><input id="newCategoryInput" type="text" placeholder="새 카테고리 이름" maxlength="20" /><button class="manage-button filled" id="addCategoryButton" type="button">추가</button></div><div class="category-list" id="categoryList"></div><button class="secondary-button" value="cancel" type="submit">완료</button></form></dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div><script src="trip-app.js"></script>
+  </body>
+</html>
