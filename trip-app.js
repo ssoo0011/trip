@@ -206,6 +206,19 @@ document.addEventListener('click',event=>{
   const row=event.target.closest('.saved-place[data-place-id]');
   if(row&&!event.target.closest('[data-delete-place]'))beginPlaceEdit(row.dataset.placeId);
 });
+
+// Imported JSON must be committed immediately so a refresh can restore it.
+importState=async function(file){
+  if(!file)return;
+  try{
+    state=normalize(JSON.parse(await file.text()));
+    await commitState();
+    if(document.body.dataset.page==='detail')renderDetail();else renderTripList();
+    toast('여행 데이터를 가져오고 저장했어요.');
+  }catch(error){
+    toast('JSON 파일을 읽지 못했어요.');
+  }
+};
 document.addEventListener('keydown',event=>{
   const row=event.target.closest('.saved-place[data-place-id]');
   if(row&&(event.key==='Enter'||event.key===' ')){event.preventDefault();beginPlaceEdit(row.dataset.placeId);}
