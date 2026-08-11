@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trip-planner-web-v4';
+const CACHE_NAME = 'trip-planner-web-v5';
 const APP_FILES = [
   './index.html',
   './trip.html',

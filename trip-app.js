@@ -27,7 +27,7 @@ function openCategory(type){categoryMode=type;$('#categoryTitle').textContent=ty
 function exportState(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=`my-trip-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(url);toast('여행 데이터를 내보냈어요.');}
 async function importState(file){if(!file)return;try{state=normalize(JSON.parse(await file.text()));await save();renderTripList();toast('여행 데이터를 가져왔어요.');}catch(error){toast('JSON 파일을 읽지 못했어요.');}}
 function bindGlobalEvents(){document.addEventListener('click',event=>{const saveButton=event.target.closest('[data-save-trip]');if(saveButton){saveButton.disabled=true;commitState().then(()=>toast(hasUnsavedChanges?'저장에 실패했어요.':'여행을 저장했어요.')).finally(()=>{saveButton.disabled=false;});return;}const back=event.target.closest('[data-back-list]');if(back){renderTripList();return;}const card=event.target.closest('[data-trip-id]');if(card&&!event.target.closest('[data-edit-trip]')){state.activeTripId=card.dataset.tripId;save();renderDetail();return;}const edit=event.target.closest('[data-edit-trip]');if(edit){openTripForm(edit.dataset.editTrip);return;}const newTrip=event.target.closest('[data-new-trip]');if(newTrip){openTripForm();return;}const close=event.target.closest('[data-close-modal]');if(close){close.closest('dialog')?.close();return;}const exportButton=event.target.closest('[data-export]');if(exportButton){exportState();return;}const importButton=event.target.closest('[data-import]');if(importButton){$('#importFile').click();return;}});document.addEventListener('change',event=>{if(event.target.id==='importFile')importState(event.target.files[0]);});}
-function bindListEvents(){$('#tripForm').addEventListener('submit',event=>{event.preventDefault();const name=$('#tripName').value.trim();if(!name)return;if(editingTripId){const trip=state.trips.find(item=>item.id===editingTripId);if(trip)trip.name=name;}else{const trip={id:uid(),name};state.trips.push(trip);state.activeTripId=trip.id;}$('#tripModal').close();save();renderTripList();toast(editingTripId?'여행지명을 수정했어요.':'여행지를 등록했어요.');});}
+function bindListEvents(){$('#tripForm').addEventListener('submit',async event=>{event.preventDefault();const name=$('#tripName').value.trim();if(!name)return;const wasEditing=Boolean(editingTripId);if(wasEditing){const trip=state.trips.find(item=>item.id===editingTripId);if(trip)trip.name=name;}else{const trip={id:uid(),name};state.trips.push(trip);state.activeTripId=trip.id;}$('#tripModal').close();save();await commitState();renderTripList();toast(wasEditing?'여행지명을 수정했어요.':'여행지를 등록했어요.');});}
 function bindDetailEvents(){$('#placeForm').addEventListener('submit',event=>{event.preventDefault();const form=new FormData(event.currentTarget),name=String(form.get('name')||'').trim();if(!name)return;state.places.push({id:uid(),tripId:state.activeTripId,name,category:form.get('category')});event.currentTarget.reset();save();renderDetailContent();toast('장소를 저장했어요.');});$('#expenseForm').addEventListener('submit',event=>{event.preventDefault();const form=new FormData(event.currentTarget);state.expenses.push({id:uid(),tripId:state.activeTripId,title:String(form.get('title')||'').trim(),amount:Number(form.get('amount'))||0,category:form.get('category')});event.currentTarget.reset();save();renderDetailContent();toast('경비를 저장했어요.');});$('#dateForm').addEventListener('submit',event=>{event.preventDefault();const value=String(new FormData(event.currentTarget).get('date')||'').trim();if(!value)return;state.dates.push({id:uid(),tripId:state.activeTripId,value});event.currentTarget.reset();save();renderDetailContent();toast('날짜 섹션을 추가했어요.');});document.addEventListener('click',event=>{const edit=event.target.closest('[data-edit-current-trip]');if(edit){openTripForm(state.activeTripId);return;}const openCategoryButton=event.target.closest('[data-open-category]');if(openCategoryButton){openCategory(openCategoryButton.dataset.openCategory);return;}const deletePlace=event.target.closest('[data-delete-place]');if(deletePlace){state.places=state.places.filter(item=>item.id!==deletePlace.dataset.deletePlace);state.schedule=state.schedule.filter(item=>item.placeId!==deletePlace.dataset.deletePlace);save();renderDetailContent();return;}const deleteExpense=event.target.closest('[data-delete-expense]');if(deleteExpense){state.expenses=state.expenses.filter(item=>item.id!==deleteExpense.dataset.deleteExpense);save();renderDetailContent();return;}const deleteDate=event.target.closest('[data-delete-date]');if(deleteDate){state.dates=state.dates.filter(item=>item.id!==deleteDate.dataset.deleteDate);state.schedule=state.schedule.filter(item=>item.dateId!==deleteDate.dataset.deleteDate);save();renderDetailContent();return;}const removeSchedule=event.target.closest('[data-remove-schedule]');if(removeSchedule){state.schedule=state.schedule.filter(item=>item.id!==removeSchedule.dataset.removeSchedule);save();renderDetailContent();return;}const deleteCategory=event.target.closest('[data-delete-category]');if(deleteCategory&&deleteCategory.dataset.deleteCategory!=='기타'){state.categories[categoryMode]=state.categories[categoryMode].filter(item=>item!==deleteCategory.dataset.deleteCategory);$('#categoryModal').close();save();renderDetailContent();}});$('#addCategory').addEventListener('click',()=>{const input=$('#categoryName'),value=input.value.trim();if(!value||state.categories[categoryMode].includes(value))return;state.categories[categoryMode].push(value);input.value='';openCategory(categoryMode);save();});document.addEventListener('dragstart',event=>{const place=event.target.closest('[data-place-id]'),schedule=event.target.closest('[data-schedule-id]');if(place){event.dataTransfer.setData('text/plain',`place:${place.dataset.placeId}`);place.classList.add('dragging');}else if(schedule){event.dataTransfer.setData('text/plain',`schedule:${schedule.dataset.scheduleId}`);schedule.classList.add('dragging');}});document.addEventListener('dragend',event=>{event.target.closest('[data-place-id], [data-schedule-id]')?.classList.remove('dragging');});document.addEventListener('dragover',event=>{const zone=event.target.closest('[data-date-dropzone]');if(zone){event.preventDefault();zone.classList.add('drag-over');}});document.addEventListener('dragleave',event=>{event.target.closest('[data-date-dropzone]')?.classList.remove('drag-over');});document.addEventListener('drop',event=>{const zone=event.target.closest('[data-date-dropzone]');if(!zone)return;event.preventDefault();zone.classList.remove('drag-over');const payload=event.dataTransfer.getData('text/plain'),[type,id]=payload.split(':');if(type==='place'&&!state.schedule.some(item=>item.dateId===zone.dataset.dateDropzone&&item.placeId===id)){state.schedule.push({id:uid(),tripId:state.activeTripId,dateId:zone.dataset.dateDropzone,placeId:id,order:state.schedule.filter(item=>item.dateId===zone.dataset.dateDropzone).length});save();renderDetailContent();toast('장소를 일정에 추가했어요.');}if(type==='schedule'){const item=state.schedule.find(schedule=>schedule.id===id);if(item){item.dateId=zone.dataset.dateDropzone;item.order=state.schedule.filter(schedule=>schedule.dateId===zone.dataset.dateDropzone).length;save();renderDetailContent();toast('일정을 옮겼어요.');}}});}
 function start(){const link=document.createElement('link');link.rel='stylesheet';link.href='trip.css';document.head.append(link);bindGlobalEvents();try{const request=indexedDB.open(TRIP_DB,1);request.onsuccess=()=>{const db=request.result,read=db.transaction(TRIP_STORE,'readonly').objectStore(TRIP_STORE).get(TRIP_KEY);read.onsuccess=()=>{if(read.result)state=normalize(read.result);renderTripList();};read.onerror=()=>renderTripList();};request.onerror=()=>renderTripList();}catch(error){renderTripList();}}
 const baseRenderDetail=renderDetail;
@@ -564,6 +564,7 @@ function removeTrip(tripId){
   state.places=state.places.filter(item=>item.tripId!==tripId);
   state.dates=state.dates.filter(item=>item.tripId!==tripId);
   state.schedule=state.schedule.filter(item=>item.tripId!==tripId);
+  state.scheduleGroups=ensureNestedScheduleState().filter(item=>item.tripId!==tripId);
   state.expenses=state.expenses.filter(item=>item.tripId!==tripId);
   state.tripPackingLists=state.tripPackingLists.filter(item=>item.tripId!==tripId);
   state.tripPackings=state.tripPackings.filter(item=>item.tripId!==tripId);
@@ -582,6 +583,7 @@ function removeSchedule(scheduleId){
 function removeDate(dateId){
   state.dates=state.dates.filter(item=>item.id!==dateId);
   state.schedule=state.schedule.filter(item=>item.dateId!==dateId);
+  state.scheduleGroups=ensureNestedScheduleState().filter(item=>item.dateId!==dateId);
   save();
   renderDetailContent();
   deleteNotice('날짜와 해당 일정들을 삭제했어요.');
@@ -850,3 +852,207 @@ document.addEventListener('submit',event=>{
   commitState();
   setTimeout(()=>{if(document.querySelector('.packing-editor-page'))renderPackingEditor(activePackingListId);},0);
 });
+
+// Keep reservation details when importing older and newer schedule data.
+const normalizeWithBookingDetails=normalize;
+normalize=function(input){
+  const result=normalizeWithBookingDetails(input),rawPlans=Array.isArray(input?.schedule)?input.schedule:(Array.isArray(input?.plans)?input.plans:[]),rawById=new Map(rawPlans.filter(item=>item?.id).map(item=>[String(item.id),item]));
+  result.schedule=result.schedule.map(item=>{const raw=rawById.get(String(item.id));if(!raw)return item;return{...item,bookingPlatform:raw.bookingPlatform===undefined?item.bookingPlatform||'':String(raw.bookingPlatform||''),bookingNumber:raw.bookingNumber===undefined?item.bookingNumber||'':String(raw.bookingNumber||'')};});
+  return result;
+};
+const openScheduleDetailsWithBooking=openScheduleDetails;
+openScheduleDetails=function(scheduleId){
+  openScheduleDetailsWithBooking(scheduleId);
+  const form=$('#scheduleDetailForm');
+  if(!form)return;
+  let platform=form.elements.bookingPlatform;
+  if(!platform){
+    const fields=form.querySelector('.schedule-detail-fields');
+    fields?.insertAdjacentHTML('beforeend',`
+      <label>
+        예약 플랫폼
+        <input class="modal-input" name="bookingPlatform" type="text" placeholder="예: Booking.com, 야놀자" />
+      </label>
+      <label>
+        예약번호
+        <input class="modal-input" name="bookingNumber" type="text" placeholder="예약번호 입력" />
+      </label>
+    `);
+    platform=form.elements.bookingPlatform;
+  }
+  const item=state.schedule.find(schedule=>schedule.id===scheduleId);
+  if(item){platform.value=item.bookingPlatform||'';form.elements.bookingNumber.value=item.bookingNumber||'';}
+};
+document.addEventListener('submit',event=>{
+  if(event.target.id!=='scheduleDetailForm')return;
+  const form=event.target,item=state.schedule.find(schedule=>schedule.id===form.dataset.scheduleId);
+  if(!item)return;
+  item.bookingPlatform=String(form.elements.bookingPlatform?.value||'').trim();
+  item.bookingNumber=String(form.elements.bookingNumber?.value||'').trim();
+  save();
+},true);
+
+// Allow the wish-place card to collapse on small screens without affecting desktop.
+function setupMobileWishToggle(){
+  const card=document.querySelector('.places-card'),head=card?.querySelector('.detail-card-head');
+  if(!card||!head)return;
+  let toggle=head.querySelector('[data-toggle-wish-panel]');
+  if(!toggle){
+    toggle=document.createElement('button');
+    toggle.type='button';
+    toggle.className='mobile-wish-toggle';
+    toggle.dataset.toggleWishPanel='true';
+    toggle.setAttribute('aria-controls','placeForm placeList');
+    toggle.addEventListener('click',()=>{
+      const collapsed=card.classList.toggle('wish-collapsed');
+      toggle.setAttribute('aria-expanded',String(!collapsed));
+      toggle.textContent=collapsed?'펼치기':'접기';
+    });
+    head.append(toggle);
+  }
+  const collapsed=card.classList.contains('wish-collapsed');
+  toggle.setAttribute('aria-expanded',String(!collapsed));
+  toggle.textContent=collapsed?'펼치기':'접기';
+}
+const renderDetailWithMobileWishToggle=renderDetail;
+renderDetail=function(){renderDetailWithMobileWishToggle();setupMobileWishToggle();};
+
+// Nested schedules: date -> major plan -> detail plans.
+function ensureNestedScheduleState(){
+  if(!Array.isArray(state.scheduleGroups))state.scheduleGroups=[];
+  return state.scheduleGroups;
+}
+function nestedScheduleGroups(){
+  return ensureNestedScheduleState().filter(item=>item.tripId===state.activeTripId);
+}
+function nestedScheduleGroupById(groupId){
+  return ensureNestedScheduleState().find(item=>item.id===groupId);
+}
+function nestedSchedulePlaceName(item,places){
+  const place=places.find(saved=>saved.id===item.placeId);
+  return item.placeName||place?.name||'';
+}
+function nestedScheduleOrder(items){
+  return items.sort((a,b)=>(a.order||0)-(b.order||0));
+}
+function nestedScheduleLegacyTable(rows,places){
+  if(!rows.length)return '';
+  return `<div class="nested-schedule-table-wrap"><table class="schedule-table compact-schedule-table"><thead><tr><th class="schedule-col-order">순번</th><th class="schedule-col-time">시간</th><th class="schedule-col-place">장소명</th><th class="schedule-col-cost">소요금액</th><th class="schedule-col-action" aria-label="상세"></th></tr></thead><tbody>${rows.map((item,index)=>{
+    const place=places.find(saved=>saved.id===item.placeId),name=nestedSchedulePlaceName(item,places);
+    return `<tr class="schedule-table-row" draggable="true" data-schedule-id="${item.id}"><td class="schedule-col-order"><span class="schedule-order">${String(index+1).padStart(2,'0')}</span></td><td class="schedule-col-time"><input class="schedule-cell-input" data-schedule-id="${item.id}" data-schedule-field="time" type="text" inputmode="numeric" placeholder="09:00" value="${escapeHtml(item.time||'')}" /></td><td class="schedule-col-place"><input class="schedule-cell-input place-name-input" data-schedule-id="${item.id}" data-schedule-field="placeName" type="text" placeholder="장소명 입력" value="${escapeHtml(name)}" /><small>${escapeHtml(place?.category||'')}</small></td><td class="schedule-col-cost"><input class="schedule-cell-input cost-input" data-schedule-id="${item.id}" data-schedule-field="cost" type="text" inputmode="numeric" placeholder="0" value="${escapeHtml(item.cost??'')}" /></td><td class="schedule-col-action"><button class="schedule-detail-button" type="button" data-schedule-details="${item.id}" aria-label="${escapeHtml(name||'장소')} 상세 입력">⌕</button></td></tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+function nestedScheduleDetailMarkup(item,places,index){
+  const name=nestedSchedulePlaceName(item,places);
+  return `<div class="schedule-subrow" draggable="true" data-schedule-id="${item.id}"><span class="schedule-child-drag-handle" aria-hidden="true">⠿</span><span class="schedule-sub-order">${String(index+1).padStart(2,'0')}</span><input class="schedule-cell-input schedule-sub-time" data-schedule-id="${item.id}" data-schedule-field="time" type="text" inputmode="numeric" placeholder="시간" value="${escapeHtml(item.time||'')}" /><input class="schedule-cell-input schedule-sub-name" data-schedule-id="${item.id}" data-schedule-field="placeName" type="text" placeholder="세부 일정 입력" value="${escapeHtml(name)}" /><input class="schedule-cell-input schedule-sub-cost cost-input" data-schedule-id="${item.id}" data-schedule-field="cost" type="text" inputmode="numeric" placeholder="금액" value="${escapeHtml(item.cost??'')}" /><button class="schedule-remove schedule-sub-delete" type="button" data-remove-schedule="${item.id}" aria-label="${escapeHtml(name||'세부 일정')} 삭제">×</button></div>`;
+}
+function nestedScheduleGroupMarkup(group,items,places){
+  const title=group.title||'새 계획';
+  return `<section class="schedule-group" data-schedule-group="${group.id}"><div class="schedule-group-head"><span class="schedule-group-drag-handle" draggable="true" data-schedule-group-id="${group.id}" title="큰 일정 이동" aria-label="큰 일정 이동">⠿</span><label class="schedule-group-title-wrap"><span>큰 일정</span><input class="schedule-group-title" data-schedule-group-id="${group.id}" data-schedule-group-field="title" type="text" value="${escapeHtml(title)}" aria-label="큰 일정 이름" /></label><button class="schedule-group-add" type="button" data-add-schedule-child="${group.id}">＋ 세부 일정</button><button class="schedule-remove schedule-group-delete" type="button" data-remove-schedule-group="${group.id}" aria-label="${escapeHtml(title)} 삭제">×</button></div><div class="schedule-group-items" data-schedule-group-dropzone="${group.id}">${items.length?items.map((item,index)=>nestedScheduleDetailMarkup(item,places,index)).join(''):'<div class="schedule-group-empty">＋ 세부 일정으로 이 큰 일정 안에 일정을 추가하세요.</div>'}</div></section>`;
+}
+function renderNestedScheduleTables(){
+  const places=tripPlaces(),dates=tripDates(),schedule=tripSchedule(),groups=nestedScheduleGroups(),sections=$('#dateSections');
+  if(!sections)return;
+  sections.innerHTML=dates.length?dates.map(date=>{
+    const dateGroups=nestedScheduleOrder(groups.filter(group=>group.dateId===date.id)),groupIds=new Set(dateGroups.map(group=>group.id)),groupItems=schedule.filter(item=>item.groupId&&groupIds.has(item.groupId)),legacyRows=nestedScheduleOrder(schedule.filter(item=>item.dateId===date.id&&!item.groupId));
+    return `<section class="date-section" data-date-section="${date.id}"><div class="date-section-head"><div><h3>${escapeHtml(date.value)}</h3><span>${schedule.filter(item=>item.dateId===date.id).length}개 일정</span></div><button class="date-add-group" type="button" data-add-schedule-group="${date.id}">＋ 새 계획</button><button class="mini-delete" type="button" data-delete-date="${date.id}" aria-label="${escapeHtml(date.value)} 날짜 삭제">×</button></div><div class="date-dropzone schedule-dropzone" data-date-dropzone="${date.id}"><div class="nested-schedule-content">${dateGroups.map(group=>nestedScheduleGroupMarkup(group,nestedScheduleOrder(groupItems.filter(item=>item.groupId===group.id)),places)).join('')}${nestedScheduleLegacyTable(legacyRows,places)||(!dateGroups.length?'<div class="drop-hint">왼쪽 위시 장소를 이 날짜로 드래그하거나 새 계획을 추가하세요.</div>':'')}</div></div></section>`;
+  }).join(''):'<div class="empty-small">위에서 여행 기간을 선택하면 날짜별 표가 생겨요.</div>';
+}
+renderScheduleTables=renderNestedScheduleTables;
+const normalizeWithNestedSchedules=normalize;
+normalize=function(input){
+  const result=normalizeWithNestedSchedules(input),incoming=input||{},fallback=result.trips[0]?.id||'',rawGroups=Array.isArray(incoming.scheduleGroups)?incoming.scheduleGroups:[],groups=rawGroups.filter(item=>item&&item.id&&item.dateId).map(item=>({id:String(item.id),tripId:String(item.tripId||item.destinationId||fallback),dateId:String(item.dateId),title:String(item.title||'새 계획'),order:Number.isFinite(item.order)?item.order:0}));
+  const groupIds=new Set(groups.map(item=>item.id)),rawSchedules=Array.isArray(incoming.schedule)?incoming.schedule:(Array.isArray(incoming.plans)?incoming.plans:[]),rawById=new Map(rawSchedules.filter(item=>item?.id).map(item=>[String(item.id),item]));
+  result.scheduleGroups=groups;
+  result.schedule=result.schedule.map(item=>{const raw=rawById.get(String(item.id)),groupId=String(raw?.groupId||item.groupId||'');return groupId&&groupIds.has(groupId)?{...item,groupId}:item;});
+  return result;
+};
+function addNestedScheduleChild(groupId){
+  const group=nestedScheduleGroupById(groupId);if(!group)return;
+  const id=uid(),siblings=tripSchedule().filter(item=>item.groupId===groupId);
+  state.schedule.push({id,tripId:state.activeTripId,dateId:group.dateId,groupId,placeId:'',placeName:'',category:'',order:siblings.length,time:'',address:'',cost:'',stay:'',transport:''});
+  save();renderDetailContent();setTimeout(()=>document.querySelector(`[data-schedule-id="${id}"] [data-schedule-field="placeName"]`)?.focus(),0);
+}
+function addNestedScheduleGroup(dateId){
+  const id=uid(),group={id,tripId:state.activeTripId,dateId,title:'새 계획',order:nestedScheduleGroups().filter(item=>item.dateId===dateId).length};
+  ensureNestedScheduleState().push(group);
+  addNestedScheduleChildWithoutRender(group);
+  save();renderDetailContent();setTimeout(()=>{const input=document.querySelector(`[data-schedule-group="${id}"] [data-schedule-group-field="title"]`);input?.focus();input?.select();},0);
+}
+function addNestedScheduleChildWithoutRender(group){
+  const id=uid(),siblings=tripSchedule().filter(item=>item.groupId===group.id);
+  state.schedule.push({id,tripId:state.activeTripId,dateId:group.dateId,groupId:group.id,placeId:'',placeName:'',category:'',order:siblings.length,time:'',address:'',cost:'',stay:'',transport:''});
+}
+function nestedScheduleMoveItem(item,targetDateId,targetGroupId){
+  const targetGroup=targetGroupId?nestedScheduleGroupById(targetGroupId):null;
+  item.dateId=targetGroup?targetGroup.dateId:targetDateId;
+  item.groupId=targetGroup?.id||'';
+  const siblings=tripSchedule().filter(other=>other.id!==item.id&&other.dateId===item.dateId&&(other.groupId||'')===(item.groupId||''));
+  item.order=siblings.length;
+}
+function nestedScheduleMoveGroup(group,targetDateId){
+  if(!group||!targetDateId)return;
+  group.dateId=targetDateId;
+  const siblings=nestedScheduleGroups().filter(other=>other.id!==group.id&&other.dateId===targetDateId);
+  group.order=siblings.length;
+  tripSchedule().filter(item=>item.groupId===group.id).forEach(item=>{item.dateId=targetDateId;});
+}
+document.addEventListener('click',event=>{
+  const addGroup=event.target.closest('[data-add-schedule-group]');
+  if(addGroup){event.preventDefault();event.stopImmediatePropagation();addNestedScheduleGroup(addGroup.dataset.addScheduleGroup);return;}
+  const addChild=event.target.closest('[data-add-schedule-child]');
+  if(addChild){event.preventDefault();event.stopImmediatePropagation();addNestedScheduleChild(addChild.dataset.addScheduleChild);return;}
+  const deleteGroup=event.target.closest('[data-remove-schedule-group]');
+  if(deleteGroup){event.preventDefault();event.stopImmediatePropagation();const group=nestedScheduleGroupById(deleteGroup.dataset.removeScheduleGroup);if(!group)return;deleteConfirm(`'${group.title||'새 계획'}' 큰 일정을 삭제할까요?`,'안에 포함된 세부 일정도 함께 삭제됩니다.').then(confirmed=>{if(!confirmed)return;state.scheduleGroups=ensureNestedScheduleState().filter(item=>item.id!==group.id);state.schedule=state.schedule.filter(item=>item.groupId!==group.id);save();renderDetailContent();deleteNotice('큰 일정과 세부 일정을 삭제했어요.');});}
+},true);
+document.addEventListener('input',event=>{
+  const field=event.target.closest('[data-schedule-group-field="title"]');
+  if(!field)return;
+  const group=nestedScheduleGroupById(field.dataset.scheduleGroupId);
+  if(group){group.title=field.value;save();}
+});
+document.addEventListener('dragstart',event=>{
+  const groupHandle=event.target.closest('[data-schedule-group-id]');
+  if(groupHandle){event.dataTransfer.setData('text/plain',`group:${groupHandle.dataset.scheduleGroupId}`);event.dataTransfer.effectAllowed='move';groupHandle.closest('.schedule-group')?.classList.add('dragging');event.stopImmediatePropagation();return;}
+  const row=event.target.closest('[data-schedule-id]');
+  if(row){event.dataTransfer.setData('text/plain',`schedule:${row.dataset.scheduleId}`);event.dataTransfer.effectAllowed='move';row.classList.add('dragging');event.stopImmediatePropagation();}
+},true);
+document.addEventListener('dragend',event=>{
+  event.target.closest('.schedule-group')?.classList.remove('dragging');
+  event.target.closest('[data-schedule-id]')?.classList.remove('dragging');
+},true);
+document.addEventListener('dragover',event=>{
+  const zone=event.target.closest('[data-date-dropzone],[data-schedule-group-dropzone]');
+  if(zone){event.preventDefault();zone.classList.add('drag-over');}
+},true);
+document.addEventListener('dragleave',event=>{
+  const zone=event.target.closest('[data-date-dropzone],[data-schedule-group-dropzone]');
+  zone?.classList.remove('drag-over');
+},true);
+document.addEventListener('drop',event=>{
+  const payload=event.dataTransfer.getData('text/plain'),dateSection=event.target.closest('[data-date-section]');
+  if(!dateSection||(!payload.startsWith('group:')&&!payload.startsWith('schedule:')&&!payload.startsWith('place:')))return;
+  event.preventDefault();event.stopImmediatePropagation();document.querySelectorAll('.drag-over').forEach(node=>node.classList.remove('drag-over'));
+  const targetDateId=dateSection.dataset.dateSection,targetGroup=event.target.closest('[data-schedule-group-dropzone]')?.dataset.scheduleGroupDropzone;
+  if(payload.startsWith('place:')&&targetGroup){
+    const placeId=payload.slice(6),group=nestedScheduleGroupById(targetGroup);
+    if(group&&!tripSchedule().some(item=>item.groupId===group.id&&item.placeId===placeId)){const siblings=tripSchedule().filter(item=>item.groupId===group.id);state.schedule.push({id:uid(),tripId:state.activeTripId,dateId:group.dateId,groupId:group.id,placeId,placeName:'',category:'',order:siblings.length,time:'',address:'',cost:'',stay:'',transport:''});save();renderDetailContent();toast('위시 장소를 큰 일정에 넣었어요.');}
+    return;
+  }
+  if(payload.startsWith('group:')){const group=nestedScheduleGroupById(payload.slice(6));if(group&&group.id!==targetGroup){nestedScheduleMoveGroup(group,targetDateId);save();renderDetailContent();toast('큰 일정을 다른 날짜로 옮겼어요.');}return;}
+  const item=state.schedule.find(schedule=>schedule.id===payload.slice(9));
+  if(item){nestedScheduleMoveItem(item,targetDateId,targetGroup||'');save();renderDetailContent();toast(targetGroup?'세부 일정을 큰 일정에 넣었어요.':'세부 일정을 다른 날짜로 옮겼어요.');}
+},true);
+
+// Android loads its state before the final normalizers above are defined.
+function restoreNestedScheduleStateForNative(){
+  if(!isNativeAndroid())return;
+  try{
+    const raw=window.TripDb.loadState(),parsed=raw?JSON.parse(raw):null;
+    if(!Array.isArray(parsed?.scheduleGroups))return;
+    state=normalize(parsed);
+    initializePackingState();
+    renderTripList();
+  }catch(error){}
+}
+restoreNestedScheduleStateForNative();
