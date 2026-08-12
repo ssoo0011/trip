@@ -85,7 +85,42 @@ openDb=function(){if(dbPromise)return dbPromise;dbPromise=new Promise((resolve,r
 start=function(){if(!document.querySelector('link[href*="trip.css"]')){const link=document.createElement('link');link.rel='stylesheet';link.href='trip.css?v=20260804-3';document.head.append(link);}bindGlobalEvents();openDb().then(db=>{const read=db.transaction(TRIP_STORE,'readonly').objectStore(TRIP_STORE).get(TRIP_KEY);read.onsuccess=()=>{if(read.result)state=normalize(read.result);renderTripList();};read.onerror=()=>renderTripList();}).catch(()=>renderTripList());};
 const browserPersistState=persistState;
 const isNativeAndroid=()=>typeof window!=='undefined'&&window.TripDb&&typeof window.TripDb.loadState==='function';
-async function commitState(){if(isNativeAndroid()){try{if(!window.TripDb.saveState(JSON.stringify(state)))throw new Error('Native save failed');hasUnsavedChanges=false;updateSaveStatus('저장됨');}catch(error){updateSaveStatus('저장 실패');}return;}return browserPersistState();}
+const travelDbApiBase=(typeof window!=='undefined'&&window.TRAVEL_DB_API_BASE)||'http://127.0.0.1:8787/api';
+let remoteDbAvailable=false;
+async function loadRemoteState(){
+  try{
+    const response=await fetch(`${travelDbApiBase}/state`,{cache:'no-store'});
+    if(response.status===404)return false;
+    if(!response.ok)throw new Error(`Remote state load failed: ${response.status}`);
+    state=normalize(await response.json());
+    remoteDbAvailable=true;
+    return true;
+  }catch(error){
+    remoteDbAvailable=false;
+    return false;
+  }
+}
+async function loadLocalState(){
+  try{
+    const db=await openDb();
+    const saved=await new Promise((resolve,reject)=>{const request=db.transaction(TRIP_STORE,'readonly').objectStore(TRIP_STORE).get(TRIP_KEY);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+    if(saved)state=normalize(saved);
+    return Boolean(saved);
+  }catch(error){
+    return false;
+  }
+}
+async function commitState(){
+  if(isNativeAndroid()){try{if(!window.TripDb.saveState(JSON.stringify(state)))throw new Error('Native save failed');hasUnsavedChanges=false;updateSaveStatus('저장됨');}catch(error){updateSaveStatus('저장 실패');}return;}
+  try{
+    const response=await fetch(`${travelDbApiBase}/state`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)});
+    if(!response.ok)throw new Error(`Remote state save failed: ${response.status}`);
+    remoteDbAvailable=true;hasUnsavedChanges=false;updateSaveStatus('DB 저장됨');
+  }catch(error){
+    remoteDbAvailable=false;
+    return browserPersistState();
+  }
+}
 save=async function(){markUnsaved();};
 const browserStart=start;
 start=function(){if(!isNativeAndroid())return browserStart();if(!document.querySelector('link[href*="trip.css"]')){const link=document.createElement('link');link.rel='stylesheet';link.href='trip.css?v=20260804-3';document.head.append(link);}bindGlobalEvents();try{const raw=window.TripDb.loadState();if(raw)state=normalize(JSON.parse(raw));renderTripList();}catch(error){renderTripList();}finally{document.documentElement.classList.remove('page-loading');}};
@@ -132,6 +167,21 @@ let collapsedPlaceCategories=new Set();
 function renderGroupedPlaceListWithAccordion(){const list=$('#placeList');if(!list)return;const groups=tripPlaces().reduce((map,place)=>{const category=place.category||'기타';(map[category]??=[]).push(place);return map;},{});list.innerHTML=Object.entries(groups).map(([category,items])=>{const collapsed=collapsedPlaceCategories.has(category);return`<section class="saved-place-group"><button class="saved-place-group-toggle" type="button" data-place-category-toggle="${escapeHtml(category)}" aria-expanded="${String(!collapsed)}"><span><strong>${escapeHtml(category)}</strong><small>${items.length}개</small></span><i aria-hidden="true">⌄</i></button><div class="saved-place-group-items"${collapsed?' hidden':''}>${items.map(place=>`<div class="saved-place" draggable="true" data-place-id="${place.id}"><span class="saved-place-category">${escapeHtml(category)}</span><span class="place-dot"></span><span class="saved-place-name" title="${escapeHtml(place.name)}">${escapeHtml(place.name)}</span><button class="mini-delete" type="button" data-delete-place="${place.id}" aria-label="${escapeHtml(place.name)} 삭제">×</button></div>`).join('')}</div></section>`;}).join('')||'<div class="empty-small">저장한 장소가 없어요.</div>';}
 renderGroupedPlaceList=renderGroupedPlaceListWithAccordion;
 document.addEventListener('click',event=>{const toggle=event.target.closest('[data-place-category-toggle]');if(!toggle)return;const category=toggle.dataset.placeCategoryToggle;if(collapsedPlaceCategories.has(category))collapsedPlaceCategories.delete(category);else collapsedPlaceCategories.add(category);renderGroupedPlaceList();});
+const startWithLocalState=start;
+start=async function(){
+  if(isNativeAndroid())return startWithLocalState();
+  if(await loadRemoteState()){
+    bindGlobalEvents();
+    renderTripList();
+    document.documentElement.classList.remove('page-loading');
+    return;
+  }
+  const localLoaded=await loadLocalState();
+  bindGlobalEvents();
+  renderTripList();
+  document.documentElement.classList.remove('page-loading');
+  if(localLoaded)await commitState();
+};
 start();
 
 // Place editing, accordion polish, and the collapsible application rail.
@@ -544,7 +594,7 @@ function deleteNotice(text){
   }
   toast(text);
 }
-function removeTrip(tripId){
+async function removeTrip(tripId){
   const trip=state.trips.find(item=>item.id===tripId);
   if(!trip)return;
   state.trips=state.trips.filter(item=>item.id!==tripId);
@@ -558,6 +608,7 @@ function removeTrip(tripId){
   state.tripCustomPackings=state.tripCustomPackings.filter(item=>item.tripId!==tripId);
   state.activeTripId=state.trips[0]?.id||'';
   save();
+  await commitState();
   renderTripList();
   deleteNotice('여행과 관련된 장소, 일정, 경비를 모두 삭제했어요.');
 }
